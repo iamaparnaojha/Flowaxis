@@ -178,6 +178,8 @@ Backend API docs: `http://localhost:8080/api/v1/docs`
 | DELETE | `/tasks/:taskId` | Bearer + Owner | Delete task |
 
 ---
+ Swagger:
+https://flowaxis.onrender.com/api/v1/docs/
 
 ## Design Decisions
 
