@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { authApi, userApi, setAccessToken, clearAccessToken } from '../services/api';

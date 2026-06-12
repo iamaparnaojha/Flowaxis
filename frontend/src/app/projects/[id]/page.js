@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import useAuth from '../../../../hooks/useAuth';
-import useToast from '../../../../hooks/useToast';
-import { projectApi, taskApi } from '../../../../services/api';
-import Button from '../../../../components/ui/Button';
-import Input from '../../../../components/ui/Input';
-import Modal from '../../../../components/ui/Modal';
-import { ToastContainer } from '../../../../components/ui/Toast';
+import useAuth from '../../../hooks/useAuth.js';
+import useToast from '../../../hooks/useToast.js';
+import { projectApi, taskApi } from '../../../services/api.js';
+import Button from '../../../components/ui/Button.js';
+import Input from '../../../components/ui/Input.js';
+import Modal from '../../../components/ui/Modal.js';
+import { ToastContainer } from '../../../components/ui/Toast.js';
 import styles from './page.module.css';
 
 const STATUS_COLORS = {
@@ -30,6 +30,14 @@ export default function ProjectDetailPage() {
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [taskForm, setTaskForm] = useState({ title: '', description: '', priority: 'medium' });
   const [statusFilter, setStatusFilter] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState(null);
+
+  const [projectForm, setProjectForm] = useState({ name: '', description: '', tags: '' });
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [isUpdatingProject, setIsUpdatingProject] = useState(false);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
+  const [memberEmail, setMemberEmail] = useState('');
+  const [isAddingMember, setIsAddingMember] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !currentUser) router.replace('/');
@@ -57,21 +65,93 @@ export default function ProjectDetailPage() {
     if (currentUser) fetchData();
   }, [currentUser, fetchData]);
 
+  const handleProjectChange = (e) => {
+    setProjectForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleUpdateProject = async (e) => {
+    e.preventDefault();
+    setIsUpdatingProject(true);
+    try {
+      const payload = {
+        name: projectForm.name.trim(),
+        description: projectForm.description.trim(),
+        tags: typeof projectForm.tags === 'string' ? projectForm.tags.split(',').map((t) => t.trim()).filter(Boolean) : projectForm.tags,
+      };
+      const { data } = await projectApi.update(id, payload);
+      setProject(data.data.project);
+      toast.success('Project updated!');
+      setIsProjectModalOpen(false);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update project.');
+    } finally {
+      setIsUpdatingProject(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!confirm('Delete this project? This cannot be undone.')) return;
+    setIsDeletingProject(true);
+    try {
+      await projectApi.delete(id);
+      toast.success('Project deleted.');
+      router.push('/projects');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete project.');
+    } finally {
+      setIsDeletingProject(false);
+    }
+  };
+
+  const handleAddMember = async (e) => {
+    e.preventDefault();
+    if (!memberEmail.trim()) return;
+    setIsAddingMember(true);
+    try {
+      const { data } = await projectApi.addMember(id, { email: memberEmail.trim(), role: 'viewer' });
+      setProject(data.data.project);
+      toast.success('Member added!');
+      setMemberEmail('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add member.');
+    } finally {
+      setIsAddingMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (userId) => {
+    if (!confirm('Remove this member?')) return;
+    try {
+      await projectApi.removeMember(id, userId);
+      setProject((prev) => ({ ...prev, members: prev.members.filter(m => m.user?._id !== userId && m.user !== userId) }));
+      toast.success('Member removed.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove member.');
+    }
+  };
+
   const handleTaskChange = (e) => {
     setTaskForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleCreateTask = async (e) => {
+  const handleSubmitTask = async (e) => {
     e.preventDefault();
     setIsCreatingTask(true);
     try {
-      const { data } = await taskApi.create(id, taskForm);
-      setTasks((prev) => [data.data.task, ...prev]);
-      toast.success('Task created!');
+      if (editingTaskId) {
+        const { data } = await taskApi.update(id, editingTaskId, taskForm);
+        setTasks((prev) => prev.map((t) => t._id === editingTaskId ? data.data.task : t));
+        toast.success('Task updated!');
+      } else {
+        const { data } = await taskApi.create(id, taskForm);
+        setTasks((prev) => [data.data.task, ...prev]);
+        toast.success('Task created!');
+      }
       setIsTaskModalOpen(false);
       setTaskForm({ title: '', description: '', priority: 'medium' });
+      setEditingTaskId(null);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create task.');
+      toast.error(err.response?.data?.message || `Failed to ${editingTaskId ? 'update' : 'create'} task.`);
     } finally {
       setIsCreatingTask(false);
     }
@@ -136,24 +216,67 @@ export default function ProjectDetailPage() {
               ))}
             </div>
           </div>
+          {isOwner && (
+            <div className={styles.headerButtons}>
+              <Button size="sm" variant="ghost" onClick={() => {
+                setProjectForm({ name: project.name, description: project.description || '', tags: project.tags?.join(', ') || '' });
+                setIsProjectModalOpen(true);
+              }}>
+                Edit Project
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className={styles.deleteProjectBtn}
+                onClick={handleDeleteProject}
+                isLoading={isDeletingProject}
+              >
+                Delete Project
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className={styles.divider} />
 
         {/* ── Members ───────────────────────────────────────────────────── */}
         <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>Members ({project.members?.length})</h2>
+          <h2 className={styles.sectionTitle}>Members ({project.members?.length || 0})</h2>
           <div className={styles.members}>
-            {project.members?.map((m) => (
-              <div key={m.user?._id || m.user} className={styles.memberChip}>
+            {project.members?.length > 0 ? project.members.map((m) => {
+              const uId = m.user?._id || m.user;
+              const memberName = m.user?.name || m.user?.email || (typeof m.user === 'string' ? m.user : 'Unknown');
+              return (
+              <div key={uId} className={styles.memberChip}>
                 <div className={styles.memberAvatar}>
-                  {(m.user?.name || 'U').charAt(0).toUpperCase()}
+                  {memberName.charAt(0).toUpperCase()}
                 </div>
-                <span className={styles.memberName}>{m.user?.name || 'Unknown'}</span>
+                <span className={styles.memberName}>{memberName}</span>
                 <span className={`badge badge--${m.role === 'owner' ? 'completed' : 'active'} mono`}>{m.role}</span>
+                {isOwner && m.role !== 'owner' && (
+                  <button className={styles.deleteBtn} onClick={() => handleRemoveMember(uId)} aria-label="Remove member">✕</button>
+                )}
               </div>
-            ))}
+            )}) : (
+              <div className={styles.emptyMembers}>No members added yet.</div>
+            )}
           </div>
+          {isOwner && (
+            <form onSubmit={handleAddMember} className={styles.memberForm}>
+              <div className={styles.memberInputWrapper}>
+                <Input
+                  id="add-member-email"
+                  name="email"
+                  placeholder="User email"
+                  value={memberEmail}
+                  onChange={(e) => setMemberEmail(e.target.value)}
+                  type="email"
+                  required
+                />
+              </div>
+              <Button type="submit" isLoading={isAddingMember} size="md">Add Member</Button>
+            </form>
+          )}
         </div>
 
         <div className={styles.divider} />
@@ -174,7 +297,7 @@ export default function ProjectDetailPage() {
                   <option key={s} value={s}>{s.replace('_', ' ')}</option>
                 ))}
               </select>
-              <Button size="sm" onClick={() => setIsTaskModalOpen(true)} id="create-task-btn">
+              <Button size="sm" onClick={() => { setEditingTaskId(null); setTaskForm({ title: '', description: '', priority: 'medium' }); setIsTaskModalOpen(true); }} id="create-task-btn">
                 + Task
               </Button>
             </div>
@@ -224,13 +347,26 @@ export default function ProjectDetailPage() {
                         </button>
                       )}
                       {(isOwner || currentUser?.role === 'admin') && (
-                        <button
-                          className={styles.deleteBtn}
-                          onClick={() => handleDeleteTask(task._id)}
-                          aria-label="Delete task"
-                        >
-                          ✕
-                        </button>
+                        <>
+                          <button
+                            className={styles.editBtn}
+                            onClick={() => {
+                              setEditingTaskId(task._id);
+                              setTaskForm({ title: task.title, description: task.description || '', priority: task.priority });
+                              setIsTaskModalOpen(true);
+                            }}
+                            aria-label="Edit task"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            className={styles.deleteBtn}
+                            onClick={() => handleDeleteTask(task._id)}
+                            aria-label="Delete task"
+                          >
+                            ✕
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -245,17 +381,17 @@ export default function ProjectDetailPage() {
       <Modal
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
-        title="New task"
+        title={editingTaskId ? "Edit task" : "New task"}
         footer={
           <>
             <Button variant="ghost" onClick={() => setIsTaskModalOpen(false)}>Cancel</Button>
             <Button type="submit" form="create-task-form" isLoading={isCreatingTask} id="submit-task-btn">
-              Create task
+              {editingTaskId ? "Save changes" : "Create task"}
             </Button>
           </>
         }
       >
-        <form id="create-task-form" onSubmit={handleCreateTask}>
+        <form id="create-task-form" onSubmit={handleSubmitTask}>
           <div className={styles.formStack}>
             <Input
               id="task-title"
@@ -292,6 +428,52 @@ export default function ProjectDetailPage() {
                 ))}
               </select>
             </div>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── Edit Project Modal ───────────────────────────────────────────── */}
+      <Modal
+        isOpen={isProjectModalOpen}
+        onClose={() => setIsProjectModalOpen(false)}
+        title="Edit project"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setIsProjectModalOpen(false)}>Cancel</Button>
+            <Button type="submit" form="edit-project-form" isLoading={isUpdatingProject}>
+              Save changes
+            </Button>
+          </>
+        }
+      >
+        <form id="edit-project-form" onSubmit={handleUpdateProject}>
+          <div className={styles.formStack}>
+            <Input
+              id="proj-name"
+              name="name"
+              label="Project name *"
+              value={projectForm.name}
+              onChange={handleProjectChange}
+              required
+            />
+            <div className="form-group">
+              <label htmlFor="proj-desc" className="form-label">Description</label>
+              <textarea
+                id="proj-desc"
+                name="description"
+                className={`form-input ${styles.textarea}`}
+                value={projectForm.description}
+                onChange={handleProjectChange}
+                rows={3}
+              />
+            </div>
+            <Input
+              id="proj-tags"
+              name="tags"
+              label="Tags (comma-separated)"
+              value={projectForm.tags}
+              onChange={handleProjectChange}
+            />
           </div>
         </form>
       </Modal>

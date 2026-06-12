@@ -121,7 +121,19 @@ cd frontend && npm run dev
 
 ---
 
+
+## Deployment
+
+You do not have to deploy the app unless the assignment specifically requests a live URL. For this project, the main deliverable is the working GitHub repo with README, backend APIs, frontend UI, and documentation.
+
+If you want to go the extra mile, you can deploy the backend and frontend to a platform like Render, Vercel, or Railway, and include the live URL in the assignment submission.
+
+
+---
+
 ## API Reference
+
+Backend API docs: `http://localhost:8080/api/v1/docs`
 
 ### Auth (`/api/v1/auth`) — Rate limited: 10 requests / 15 minutes
 
@@ -194,9 +206,14 @@ See [docs/SCALABILITY.md](./docs/SCALABILITY.md) for the full discussion. The sh
 
 ## Screenshots
 
-> _Add screenshots here after running the app locally_
+>![demo](image.png)
 
----
+>![demo](image-1.png)
+
+>![demo](image-2.png)
+
+>![demo](image-3.png)
+
 
 ## License
 

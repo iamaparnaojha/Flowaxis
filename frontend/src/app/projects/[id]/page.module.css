@@ -50,6 +50,37 @@
   padding: 2px 6px;
 }
 
+.headerButtons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.deleteProjectBtn {
+  color: var(--color-error);
+}
+
+.emptyMembers {
+  color: var(--color-text-2);
+  font-size: 0.875rem;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.memberForm {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.memberInputWrapper {
+  flex: 1;
+  min-width: 220px;
+}
+
 .divider {
   height: 1px;
   background: var(--color-border);
@@ -209,6 +240,19 @@
 }
 
 .deleteBtn:hover { color: var(--color-error); background: rgba(239, 68, 68, 0.1); }
+
+.editBtn {
+  font-size: 0.75rem;
+  color: var(--color-text-3);
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition: color var(--transition), background var(--transition);
+  cursor: pointer;
+  border: none;
+}
+
+.editBtn:hover { color: var(--color-accent); background: var(--color-accent-soft); }
 
 /* Skeleton */
 .skeletonHeader { height: 120px; margin-bottom: var(--space-8); border-radius: var(--radius-lg); }

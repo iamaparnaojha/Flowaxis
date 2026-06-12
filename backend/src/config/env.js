@@ -13,7 +13,7 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('30m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
-  REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
+  REDIS_URL: z.string().default(''),  // Optional — app runs without Redis; cache ops become no-ops
   REDIS_CACHE_TTL: z.string().transform(Number).default('300'),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   BCRYPT_ROUNDS: z.string().transform(Number).default('12'),

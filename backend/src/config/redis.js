@@ -3,56 +3,112 @@
 const Redis = require('ioredis');
 const env = require('./env');
 
-// Aparna: Singleton pattern — one client shared across the entire app.
-// ioredis handles connection pooling and auto-reconnect internally.
 let redisClient = null;
+let redisAvailable = false;
 
+/**
+ * Aparna: Redis is an optional cache layer, not a hard dependency.
+ * If REDIS_URL is not configured or Redis is unreachable, the app runs
+ * normally — every cache operation becomes a no-op. This prevents a
+ * Redis outage from taking down the API server.
+ */
 const getClient = () => {
+  if (!env.REDIS_URL) return null;
+
   if (!redisClient) {
     redisClient = new Redis(env.REDIS_URL, {
-      maxRetriesPerRequest: 3,
-      enableReadyCheck: true,
-      lazyConnect: false,
+      // Aparna: null = retry forever (default) would block requests.
+      // 0 = no retries — fail immediately and let the no-op fallback take over.
+      maxRetriesPerRequest: 0,
+      enableReadyCheck: false,
+      lazyConnect: true,
+      connectTimeout: 3000,
     });
 
-    redisClient.on('connect', () => console.log('✅ Redis connected'));
-    redisClient.on('error', (err) => console.error(`❌ Redis error: ${err.message}`));
-    redisClient.on('reconnecting', () => console.warn('⚠️  Redis reconnecting...'));
+    redisClient.on('connect', () => {
+      redisAvailable = true;
+      console.log('✅ Redis connected');
+    });
+
+    redisClient.on('error', (err) => {
+      // Only log once per connection attempt — not on every retry
+      if (redisAvailable) {
+        console.error(`❌ Redis error: ${err.message}`);
+      }
+      redisAvailable = false;
+    });
+
+    redisClient.on('reconnecting', () => {
+      console.warn('⚠️  Redis reconnecting...');
+    });
+
+    // Attempt connection but don't block startup
+    redisClient.connect().catch(() => {
+      redisAvailable = false;
+    });
   }
 
-  return redisClient;
+  return redisAvailable ? redisClient : null;
 };
 
 const disconnect = async () => {
   if (redisClient) {
-    await redisClient.quit();
+    try {
+      await redisClient.quit();
+    } catch {
+      // ignore errors during shutdown
+    }
     redisClient = null;
+    redisAvailable = false;
     console.log('Redis disconnected.');
   }
 };
 
 /**
- * Cache-aside helpers — keeps caching logic out of service files.
- * Services call these directly rather than importing ioredis.
+ * Cache-aside helpers — all methods silently no-op when Redis is unavailable.
+ * Services never need to handle Redis errors themselves.
  */
 const cache = {
   get: async (key) => {
-    const value = await getClient().get(key);
-    return value ? JSON.parse(value) : null;
+    const client = getClient();
+    if (!client) return null;
+    try {
+      const value = await client.get(key);
+      return value ? JSON.parse(value) : null;
+    } catch {
+      return null; // Cache miss — serve from DB
+    }
   },
 
   set: async (key, value, ttlSeconds = env.REDIS_CACHE_TTL) => {
-    await getClient().set(key, JSON.stringify(value), 'EX', ttlSeconds);
+    const client = getClient();
+    if (!client) return;
+    try {
+      await client.set(key, JSON.stringify(value), 'EX', ttlSeconds);
+    } catch {
+      // Non-fatal — data will be fetched from DB next time
+    }
   },
 
   del: async (...keys) => {
-    if (keys.length > 0) await getClient().del(...keys);
+    const client = getClient();
+    if (!client || keys.length === 0) return;
+    try {
+      await client.del(...keys);
+    } catch {
+      // Non-fatal
+    }
   },
 
-  // Delete all keys matching a pattern — used for bulk cache invalidation
   delByPattern: async (pattern) => {
-    const keys = await getClient().keys(pattern);
-    if (keys.length > 0) await getClient().del(...keys);
+    const client = getClient();
+    if (!client) return;
+    try {
+      const keys = await client.keys(pattern);
+      if (keys.length > 0) await client.del(...keys);
+    } catch {
+      // Non-fatal
+    }
   },
 };
 

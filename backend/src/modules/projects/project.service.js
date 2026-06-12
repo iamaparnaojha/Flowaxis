@@ -17,11 +17,20 @@ const cacheKeys = {
  * Returns the member entry for callerId within a project, or null if not a member.
  * Checks owner separately since owner may not always be in members array.
  */
+const resolveUserId = (userRef) => {
+  if (!userRef) return null;
+  if (typeof userRef === 'string') return userRef;
+  if (userRef._id) return userRef._id.toString();
+  if (typeof userRef.toString === 'function') return userRef.toString();
+  return null;
+};
+
 const getCallerMembership = (project, callerId) => {
-  if (project.owner.toString() === callerId) {
+  const ownerId = resolveUserId(project.owner);
+  if (ownerId === callerId) {
     return { role: 'owner' };
   }
-  return project.members.find((m) => m.user.toString() === callerId) ?? null;
+  return project.members.find((m) => resolveUserId(m.user) === callerId) ?? null;
 };
 
 const assertMembership = (project, callerId) => {
@@ -145,11 +154,16 @@ const transitionProjectStatus = async (projectId, callerId, callerRole, newStatu
   return project;
 };
 
-const addMember = async (projectId, callerId, { userId, role }) => {
+const addMember = async (projectId, callerId, { email, role }) => {
   const project = await Project.findById(projectId);
   if (!project) throw ApiError.notFound('Project');
 
   assertOwnerOrAdmin(project, callerId, 'user'); // Aparna: Only owner can manage members — no admin bypass here
+
+  const User = require('../users/user.model');
+  const user = await User.findOne({ email });
+  if (!user) throw ApiError.notFound('User not found with that email');
+  const userId = user._id.toString();
 
   if (project.owner.toString() === userId) {
     throw ApiError.conflict('Project owner is already a member');

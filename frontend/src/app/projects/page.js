@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import useAuth from '../../../hooks/useAuth';
-import useToast from '../../../hooks/useToast';
-import { projectApi } from '../../../services/api';
-import ProjectCard from '../../../components/projects/ProjectCard';
-import Button from '../../../components/ui/Button';
-import Input from '../../../components/ui/Input';
-import Modal from '../../../components/ui/Modal';
-import { ToastContainer } from '../../../components/ui/Toast';
+import useAuth from '../../hooks/useAuth';
+import useToast from '../../hooks/useToast';
+import { projectApi } from '../../services/api';
+import ProjectCard from '../../components/projects/ProjectCard';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import Modal from '../../components/ui/Modal';
+import { ToastContainer } from '../../components/ui/Toast';
 import styles from './page.module.css';
 
 export default function ProjectsPage() {
@@ -48,6 +48,7 @@ export default function ProjectsPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (isCreating) return;
     if (!form.name.trim()) return;
     setIsCreating(true);
     try {
@@ -101,7 +102,7 @@ export default function ProjectsPage() {
         ) : (
           <div className="grid-3">
             {projects.map((p) => (
-              <ProjectCard key={p._id} project={p} />
+              <ProjectCard key={p._id || p.id} project={p} />
             ))}
           </div>
         )}
@@ -117,10 +118,10 @@ export default function ProjectsPage() {
             <Button
               type="submit"
               form="create-project-form"
-              isLoading={isCreating}
+              disabled={isCreating}
               id="submit-project-btn"
             >
-              Create
+              {isCreating ? 'Creating...' : 'Create'}
             </Button>
           </>
         }

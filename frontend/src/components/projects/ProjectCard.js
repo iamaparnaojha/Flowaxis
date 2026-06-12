@@ -17,7 +17,7 @@ const ProjectCard = ({ project }) => {
     : null;
 
   return (
-    <Link href={`/projects/${project._id}`} className={styles.card}>
+    <Link href={`/projects/${project._id || project.id}`} className={styles.card}>
       <div className={styles.top}>
         <div className={styles.name}>{project.name}</div>
         <span className={`badge badge--${project.status}`}>

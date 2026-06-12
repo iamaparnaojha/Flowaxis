@@ -27,7 +27,7 @@ const transitionStatusSchema = z.object({
 });
 
 const addMemberSchema = z.object({
-  userId: objectId,
+  email: z.string().email(),
   role: z.enum(['editor', 'viewer']).default('viewer'),
 });
 

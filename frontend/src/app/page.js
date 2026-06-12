@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -7,6 +7,7 @@ import useAuth from '../hooks/useAuth';
 import useToast from '../hooks/useToast';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import Modal from '../components/ui/Modal';
 import { ToastContainer } from '../components/ui/Toast';
 import styles from './page.module.css';
 
